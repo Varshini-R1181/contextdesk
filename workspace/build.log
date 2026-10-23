@@ -1,0 +1,45 @@
+[INFO] Scanning for projects...
+[INFO] ------------------------------------------------------------------------
+[INFO] Building ContextDesk-PaymentService 2.4.0-SNAPSHOT
+[INFO] ------------------------------------------------------------------------
+[INFO] --- maven-enforcer-plugin:3.4.1:enforce (enforce-maven) @ paymentservice ---
+[INFO] --- maven-resources-plugin:3.3.1:resources (default-resources) @ paymentservice ---
+[INFO] Copying 14 resources from src/main/resources to target/classes
+[INFO] --- maven-compiler-plugin:3.11.0:compile (default-compile) @ paymentservice ---
+[INFO] Compiling 28 source files with javac [version 21.0.2] to target/classes
+[INFO] [AWS-SDK] Loading client credentials for profile 'developer-sandbox'...
+[ERROR] [AWS-SDK] Access Key expired during validation: AKIAIOSFODNN7EXAMPLE
+[ERROR] [DatabaseConfig] Database connection rejected for credentials: password=supersecretpassword
+[INFO] [AWS-SDK] Region selected: us-east-1
+[INFO] --- maven-resources-plugin:3.3.1:testResources (default-testResources) @ paymentservice ---
+[INFO] Copying 6 resources from src/test/resources to target/test-classes
+[INFO] --- maven-compiler-plugin:3.11.0:testCompile (default-testCompile) @ paymentservice ---
+[INFO] Compiling 12 test source files with javac [version 21.0.2] to target/test-classes
+[INFO] --- maven-surefire-plugin:3.2.5:test (default-test) @ paymentservice ---
+[INFO] Using auto-detected provider: org.apache.maven.surefire.junitplatform.JUnitPlatformProvider
+[INFO] Running com.amazon.contextdesk.payment.AuthTokenValidationTest
+[ERROR] [AuthFilter] Authentication check failed for header: Authorization: Bearer test-token-xyz
+[INFO] Tests run: 4, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 1.204 s -- in AuthTokenValidationTest
+[INFO] Running com.amazon.contextdesk.payment.HealthCheckControllerTest
+[INFO] Tests run: 2, Failures: 0, Errors: 0, Skipped: 0, Time elapsed: 0.412 s -- in HealthCheckControllerTest
+[INFO] Running com.amazon.contextdesk.payment.PaymentControllerTest
+[INFO] [PaymentController] Initializing Stripe & Alexa+ payment gateway integration...
+[INFO] [PaymentController] Attempting database connection to jdbc:postgresql://localhost:5432/payments
+[WARN] [ConnectionPool] Connection pool warmup took 1420ms (> 1000ms threshold)
+[INFO] [PaymentController] Processing test transaction TX-99482 for customer CUST-0021
+[INFO] [PaymentController] Invoking dependency: OrderRepository for order validation
+[ERROR] [PaymentController] Uncaught runtime exception thrown during checkout request execution:
+java.lang.NullPointerException: Cannot invoke 'OrderRepository.findById()' at PaymentController.java:42
+	at com.amazon.contextdesk.payment.PaymentController.processPayment(PaymentController.java:42)
+	at com.amazon.contextdesk.payment.PaymentController.checkout(PaymentController.java:28)
+	at java.base/jdk.internal.reflect.DirectMethodHandleAccessor.invoke(DirectMethodHandleAccessor.java:103)
+	at java.base/java.lang.reflect.Method.invoke(Method.java:580)
+	at org.springframework.web.method.support.InvocableHandlerMethod.doInvoke(InvocableHandlerMethod.java:255)
+	at org.springframework.web.method.support.InvocableHandlerMethod.invokeForRequest(InvocableHandlerMethod.java:188)
+	at org.springframework.web.servlet.mvc.method.annotation.ServletInvocableHandlerMethod.invokeAndHandle(ServletInvocableHandlerMethod.java:118)
+	at org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerAdapter.invokeHandlerMethod(RequestMappingHandlerAdapter.java:926)
+	at org.junit.jupiter.engine.execution.ExecutableInvoker.invoke(ExecutableInvoker.java:117)
+[ERROR] Tests run: 1, Failures: 0, Errors: 1, Skipped: 0, Time elapsed: 0.884 s <<< FAILURE! -- in PaymentControllerTest
+[ERROR] com.amazon.contextdesk.payment.PaymentControllerTest.testCheckout -- Time elapsed: 0.880 s <<< ERROR!
+[ERROR] [BUILD-FAILURE] PaymentController failed to initialize OrderRepository dependency.
+java.lang.NullPointerException: Cannot invoke 'OrderRepository.findById()' at PaymentController.java:42

@@ -1,0 +1,1048 @@
+<!DOCTYPE html>
+<html lang="en" class="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ContextDesk - Alexa+ Web Simulator & MCP Protocol Inspector</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Tailwind CSS CDN -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script>
+    tailwind.config = {
+      darkMode: 'class',
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'ui-sans-serif', 'system-ui', '-apple-system', 'Segoe UI', 'sans-serif'],
+            mono: ['JetBrains Mono', 'Fira Code', 'ui-monospace', 'SFMono-Regular', 'Menlo', 'Consolas', 'monospace']
+          },
+          colors: {
+            alexa: { cyan: '#00CAFF', blue: '#0055FF', dark: '#081120', glow: '#00d2ff' },
+            terminal: { bg: '#0a0e17', card: '#111827', border: '#1f293d' }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    :root { --cyan:#00CAFF; --blue:#0055FF; --mono:'JetBrains Mono','Fira Code',ui-monospace,Menlo,Consolas,monospace; }
+    html { scroll-behavior: smooth; }
+    ::-webkit-scrollbar { width: 8px; height: 8px; }
+    ::-webkit-scrollbar-track { background: transparent; }
+    ::-webkit-scrollbar-thumb { background: #1e293b; border-radius: 4px; border: 2px solid transparent; background-clip: padding-box; }
+    ::-webkit-scrollbar-thumb:hover { background: #334155; background-clip: padding-box; }
+
+    /* ---------- Ambient canvas ---------- */
+    body {
+      background-color: #03060c;
+      background-image:
+        radial-gradient(60rem 38rem at 8% -8%, rgba(0,85,255,.16), transparent 62%),
+        radial-gradient(48rem 34rem at 98% 2%, rgba(0,202,255,.09), transparent 60%),
+        radial-gradient(44rem 30rem at 50% 118%, rgba(99,102,241,.12), transparent 62%);
+      background-attachment: fixed;
+    }
+    body::before { content:""; position:fixed; inset:0; pointer-events:none; z-index:0; opacity:.5;
+      background-image: linear-gradient(rgba(148,163,184,.045) 1px, transparent 1px), linear-gradient(90deg, rgba(148,163,184,.045) 1px, transparent 1px);
+      background-size: 44px 44px; -webkit-mask-image: radial-gradient(ellipse at 50% 30%, #000 20%, transparent 75%); mask-image: radial-gradient(ellipse at 50% 30%, #000 20%, transparent 75%); }
+    header, main { position: relative; z-index: 1; }
+    .glass { background: rgba(15,23,42,.55); -webkit-backdrop-filter: blur(14px); backdrop-filter: blur(14px);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.05), 0 10px 30px -14px rgba(0,0,0,.7); }
+    #chatHistory, #inspectorLog, #inspectorLog pre { -webkit-user-select: text; user-select: text; }
+
+    /* ---------- Alexa+ glow ---------- */
+    .alexa-ring { box-shadow: 0 0 40px -6px rgba(0,202,255,.45), 0 0 90px -24px rgba(0,85,255,.55), inset 0 0 30px -8px rgba(0,202,255,.35); }
+    .alexa-ring-active { box-shadow: 0 0 56px 4px rgba(0,202,255,.7), 0 0 120px -10px rgba(0,85,255,.7), inset 0 0 36px rgba(0,85,255,.55); }
+    .alexa-pulse-ring { animation: ripple 2s infinite ease-out; }
+    @keyframes ripple { 0%{transform:scale(.95);opacity:.95} 50%{transform:scale(1.1);opacity:.6} 100%{transform:scale(.95);opacity:.95} }
+    @keyframes breathe { 0%,100%{transform:scale(1)} 50%{transform:scale(1.045)} }
+    @keyframes orbit { to { transform: rotate(360deg); } }
+    @keyframes msgIn { from{opacity:0;transform:translateY(8px) scale(.985)} to{opacity:1;transform:none} }
+    @keyframes modalIn { from{opacity:0;transform:translateY(14px) scale(.96)} to{opacity:1;transform:none} }
+    @keyframes shine { 0%{transform:translateX(-120%)} 60%,100%{transform:translateX(220%)} }
+    @keyframes micRing { 0%{box-shadow:0 0 0 0 rgba(0,202,255,.55)} 100%{box-shadow:0 0 0 16px rgba(0,202,255,0)} }
+
+    .echo-screen { position:relative; overflow:hidden; border-radius:1.6rem; padding:.9rem 1rem 1rem; margin:.75rem 0 .25rem;
+      background: radial-gradient(120% 90% at 50% 0%, rgba(0,85,255,.18), transparent 62%), linear-gradient(180deg,#070d1a,#03060e);
+      border:1px solid rgba(71,85,105,.5);
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.07), inset 0 0 70px rgba(0,0,0,.65), 0 0 0 5px rgba(3,6,14,.8), 0 24px 44px -22px rgba(0,0,0,.9); }
+    .echo-screen::before { content:""; position:absolute; top:7px; left:50%; width:5px; height:5px; margin-left:-2.5px; border-radius:50%; background:#0b1220; box-shadow: inset 0 0 2px #1e3a5f, 0 0 0 2px rgba(15,23,42,.9); z-index:3; }
+    .echo-screen::after { content:""; position:absolute; inset:0; pointer-events:none; border-radius:inherit;
+      background: linear-gradient(115deg, rgba(255,255,255,.05) 0%, transparent 32%), repeating-linear-gradient(0deg, rgba(255,255,255,.012) 0 1px, transparent 1px 3px); }
+    .echo-halo { position:absolute; left:50%; top:46%; width:19rem; height:19rem; transform:translate(-50%,-50%); pointer-events:none; opacity:.45; transition:opacity .5s;
+      background: radial-gradient(circle, rgba(0,202,255,.28), rgba(0,85,255,.12) 40%, transparent 68%); filter: blur(6px); }
+    section:has(#ringOuter.alexa-ring-active) .echo-halo { opacity:1; }
+    #ringOuter { position:relative; background: radial-gradient(circle at 50% 38%, rgba(0,202,255,.12), rgba(0,8,26,.7) 72%); border-color: rgba(0,202,255,.3); }
+    #ringOuter::before { content:""; position:absolute; inset:-3px; border-radius:50%; pointer-events:none; opacity:.9;
+      background: conic-gradient(from 0deg, transparent 0 40%, var(--cyan) 62%, var(--blue) 82%, transparent 100%);
+      -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px)); mask: radial-gradient(farthest-side, transparent calc(100% - 3px), #000 calc(100% - 2px));
+      animation: orbit 7s linear infinite; }
+    #ringOuter.alexa-ring-active::before { animation-duration: 1.6s; }
+    #ringInner { box-shadow: inset 0 0 22px rgba(0,202,255,.16); }
+    #alexaCore { background-image: linear-gradient(145deg,#00CAFF 0%,#0055FF 68%,#0a2fb5 100%); animation: breathe 4.5s ease-in-out infinite;
+      box-shadow: 0 0 34px rgba(0,202,255,.55), inset 0 2px 6px rgba(255,255,255,.4), inset 0 -10px 16px rgba(0,30,150,.65); }
+    #voiceStatusBadge { display:inline-flex; align-items:center; gap:.5rem; position:relative; z-index:2; letter-spacing:.02em;
+      -webkit-backdrop-filter: blur(8px); backdrop-filter: blur(8px); box-shadow: inset 0 1px 0 rgba(255,255,255,.06); }
+    #voiceStatusBadge::before { content:""; width:6px; height:6px; border-radius:50%; background:currentColor; box-shadow:0 0 8px currentColor; }
+    #alexaLightbar { border-radius: 0 0 999px 999px; filter: drop-shadow(0 0 8px rgba(0,202,255,.55)); }
+    #waveform { min-width: 4.5rem; justify-content: center; background: linear-gradient(180deg, rgba(15,23,42,.9), rgba(2,6,14,.9)); box-shadow: inset 0 1px 6px rgba(0,0,0,.7), 0 0 18px -6px rgba(0,202,255,.35); }
+    .wave-bar { transition: height .15s ease; background-image: linear-gradient(180deg,#00CAFF,#0055FF); box-shadow: 0 0 8px rgba(0,202,255,.6); }
+    .wave-active .wave-bar:nth-child(1) { animation: wave .8s infinite ease-in-out; }
+    .wave-active .wave-bar:nth-child(2) { animation: wave .6s infinite ease-in-out .1s; }
+    .wave-active .wave-bar:nth-child(3) { animation: wave .9s infinite ease-in-out .2s; }
+    .wave-active .wave-bar:nth-child(4) { animation: wave .7s infinite ease-in-out .3s; }
+    .wave-active .wave-bar:nth-child(5) { animation: wave 1s infinite ease-in-out .15s; }
+    @keyframes wave { 0%,100%{height:8px} 50%{height:28px} }
+    section:has(#ringOuter.alexa-pulse-ring) #micBtn { animation: micRing 1.3s infinite; }
+    #micBtn:hover { transform: scale(1.07); box-shadow: 0 0 26px rgba(0,202,255,.5); }
+    #micBtn:active { transform: scale(.94); }
+    .trigger { position:relative; overflow:hidden; backdrop-filter: blur(8px); transition: transform .2s, box-shadow .25s, background .2s, border-color .2s; }
+    .trigger:hover { transform: translateY(-2px) scale(1.02); }
+    .trigger:active { transform: scale(.97); }
+    .trigger.t-rose:hover { box-shadow: 0 10px 28px -10px rgba(244,63,94,.55); }
+    .trigger.t-amber:hover { box-shadow: 0 10px 28px -10px rgba(245,158,11,.55); }
+    .trigger.t-cyan:hover { box-shadow: 0 10px 28px -10px rgba(0,202,255,.55); }
+
+    /* ---------- Chat thread ---------- */
+    #chatHistory { background: linear-gradient(180deg, rgba(2,6,14,.55), rgba(3,8,18,.35)); box-shadow: inset 0 2px 14px rgba(0,0,0,.45); border-color: rgba(51,65,85,.4); }
+    #chatHistory > div { animation: msgIn .38s cubic-bezier(.2,.8,.2,1) both; font-size: 13px; }
+    #chatHistory .rounded-tl-none { background: linear-gradient(180deg, rgba(17,24,39,.92), rgba(10,15,28,.92)); border: 1px solid rgba(51,65,85,.6); border-left: 2px solid var(--cyan); border-radius: 4px 18px 18px 18px;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 8px 22px -14px rgba(0,0,0,.9); }
+    #chatHistory .rounded-tl-none > p:first-child { font-size: 10.5px; font-weight: 600; letter-spacing: .09em; text-transform: uppercase; color: var(--cyan); }
+    #chatHistory .rounded-tl-none > p:nth-child(2), #chatHistory .rounded-tl-none > .leading-relaxed { color: #cbd5e1; line-height: 1.65; }
+    #chatHistory .rounded-tr-none { background: linear-gradient(135deg,#0a4bff,#0055FF 45%,#4338ca); border: 1px solid rgba(125,170,255,.35); border-radius: 18px 4px 18px 18px;
+      box-shadow: 0 10px 26px -10px rgba(0,85,255,.7), inset 0 1px 0 rgba(255,255,255,.2); }
+    #chatHistory .rounded-tr-none > p:first-child { font-size: 10px; font-weight: 600; letter-spacing: .12em; text-transform: uppercase; color: rgba(186,230,253,.85); }
+    #chatHistory .rounded-tr-none > p:nth-child(2) { color: #fff; font-weight: 500; line-height: 1.55; }
+    #chatHistory .w-6.h-6.rounded-full { width: 28px; height: 28px; font-size: 10px; letter-spacing: .02em; box-shadow: inset 0 1px 0 rgba(255,255,255,.12); }
+    #chatHistory [class*="bg-alexa-blue/30"] { background: linear-gradient(145deg, rgba(0,202,255,.25), rgba(0,85,255,.35)); box-shadow: 0 0 14px rgba(0,202,255,.3); }
+    #chatHistory .mt-3 > div { background: rgba(2,6,14,.72); box-shadow: inset 0 1px 0 rgba(255,255,255,.04), 0 8px 20px -12px rgba(0,0,0,.9); }
+
+    /* ---------- Diagnostic card (CloudWatch / Datadog style) ---------- */
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] { position:relative; padding:0 !important; overflow:hidden; border-radius:10px; border-color: rgba(244,63,94,.28);
+      background: linear-gradient(180deg, rgba(20,8,16,.55), rgba(3,6,12,.85)); box-shadow: inset 3px 0 0 #f43f5e, 0 10px 26px -14px rgba(244,63,94,.45); }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > * { margin: 0; }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > :nth-child(1) { padding: 9px 12px 9px 15px; background: rgba(244,63,94,.07); border-bottom: 1px solid rgba(244,63,94,.18); }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > :nth-child(1) > span:first-child { font-size: 11px; letter-spacing: .01em; }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > :nth-child(1) > span:first-child > span { box-shadow: 0 0 0 3px rgba(244,63,94,.2), 0 0 10px #f43f5e; }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > :nth-child(1) > span:last-child { display:inline-flex; align-items:center; gap:5px; border-radius:999px; font-size:9.5px; letter-spacing:.06em; padding:2px 8px;
+      background: rgba(16,185,129,.1); border-color: rgba(52,211,153,.35); box-shadow: 0 0 12px -3px rgba(16,185,129,.5); }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > :nth-child(1) > span:last-child::before { content:""; width:5px; height:5px; border-radius:50%; background:#34d399; box-shadow:0 0 6px #34d399; }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > .font-sans { display:flex; flex-wrap:wrap; align-items:center; gap:8px; padding: 10px 12px 2px 15px; font-family: 'Inter',sans-serif; }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > .font-sans strong { font-size: 9.5px; font-weight: 600; text-transform: uppercase; letter-spacing: .1em; color: #64748b; }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > .font-sans .font-mono { font-family: var(--mono); font-size: 11px; padding: 3px 8px; border-radius: 6px; color: #fda4af; background: rgba(244,63,94,.1); border: 1px solid rgba(244,63,94,.3); }
+    .cd-line-badge { font-family: var(--mono); font-size: 10px; font-weight: 700; padding: 3px 8px; border-radius: 6px; color: #1a0a10; background: linear-gradient(180deg,#fb7185,#e11d48); box-shadow: 0 0 12px -2px rgba(244,63,94,.8); }
+    #chatHistory [class*="border-rose-500/30"][class*="font-mono"] > .whitespace-pre-wrap { margin: 8px 12px 12px 15px; padding: 6px 0; font-size: 10.5px; line-height: 1.7; color: #e2e8f0; background: #02050a; border: 1px solid rgba(51,65,85,.6); border-radius: 8px; box-shadow: inset 0 2px 8px rgba(0,0,0,.7); overflow-x: auto; }
+    .cd-row { display: grid; grid-template-columns: 2.4rem 1fr; padding-right: 10px; }
+    .cd-row:hover { background: rgba(244,63,94,.07); }
+    .cd-gutter { text-align: right; padding-right: 10px; margin-right: 10px; color: #475569; border-right: 1px solid rgba(51,65,85,.6); user-select: none; font-variant-numeric: tabular-nums; }
+    .cd-text { white-space: pre-wrap; word-break: break-word; }
+    .cd-redacted { font-weight: 700; font-size: 9.5px; letter-spacing: .04em; padding: 1px 6px; margin: 0 1px; border-radius: 4px; color: #6ee7b7; background: repeating-linear-gradient(135deg, rgba(16,185,129,.2) 0 4px, rgba(16,185,129,.1) 4px 8px); border: 1px solid rgba(52,211,153,.45); }
+    .cd-lineref { color: #fbbf24; font-weight: 600; }
+
+    /* ---------- Terminal / SSE inspector ---------- */
+    #inspectorSection { background: linear-gradient(180deg, rgba(5,8,15,.82), rgba(4,7,13,.92)); -webkit-backdrop-filter: blur(12px); backdrop-filter: blur(12px); }
+    #inspectorLog { font-family: var(--mono); background: radial-gradient(90% 60% at 50% 0%, rgba(0,85,255,.05), transparent 70%); }
+    #inspectorLog > div { --acc: #475569; position: relative; border-radius: 10px; border: 1px solid rgba(30,41,59,.9); background: rgba(8,13,23,.88); box-shadow: inset 2px 0 0 var(--acc), 0 8px 20px -14px rgba(0,0,0,.9); animation: msgIn .3s ease both; }
+    #inspectorLog > div:has([class*="bg-blue-500/20"]) { --acc: #3b82f6; }
+    #inspectorLog > div:has([class*="bg-amber-500/20"]) { --acc: #f59e0b; }
+    #inspectorLog > div:has([class*="bg-emerald-500/20"]) { --acc: #10b981; }
+    #inspectorLog > div:has([class*="bg-rose-500/20"]) { --acc: #f43f5e; }
+    #inspectorLog > div:hover { border-color: rgba(71,85,105,.7); }
+    #inspectorLog > div > div:first-child { background: rgba(15,23,42,.75); border-bottom: 1px solid rgba(30,41,59,.9); padding: 7px 12px; }
+    #inspectorLog > div > div:first-child > div > span:first-child { font-size: 0; }
+    #inspectorLog > div > div:first-child > div > span:first-child::before { content: "\25B8"; font-size: 11px; color: var(--acc); text-shadow: 0 0 8px var(--acc); }
+    #inspectorLog .font-bold.text-white { font-weight: 600; color: #e2e8f0; font-size: 11.5px; }
+    #inspectorLog .text-slate-500.font-mono { color: #64748b; font-variant-numeric: tabular-nums; letter-spacing: .02em; }
+    #inspectorLog pre { font-family: var(--mono); font-size: 11.5px; line-height: 1.7; color: #8da2bb; font-variant-ligatures: none; tab-size: 2; }
+    .json-key { color: #82aaff; } .json-string { color: #c3e88d; } .json-number { color: #f78c6c; } .json-boolean { color: #c792ea; } .json-null { color: #637777; font-style: italic; }
+    .json-redacted { background: rgba(16,185,129,.16); color: #6ee7b7; font-weight: 700; padding: 1px 5px; border-radius: 4px; border: 1px solid rgba(52,211,153,.45); box-shadow: 0 0 10px -3px rgba(16,185,129,.6); }
+    .term-btn { transition: transform .15s, background .15s, color .15s, border-color .15s; border: 1px solid rgba(51,65,85,.7); box-shadow: inset 0 -2px 0 rgba(0,0,0,.35); }
+    .term-btn:hover { transform: translateY(-1px); border-color: rgba(0,202,255,.4); }
+    .term-btn:active { transform: translateY(1px); box-shadow: none; }
+    .conn-dot { width: 8px; height: 8px; border-radius: 50%; background: #10b981; box-shadow: 0 0 0 3px rgba(16,185,129,.18), 0 0 10px #10b981; animation: dotPulse 2.4s ease-in-out infinite; }
+    .conn-dot[data-state="offline"] { background: #f43f5e; box-shadow: 0 0 0 3px rgba(244,63,94,.2), 0 0 10px #f43f5e; }
+    @keyframes dotPulse { 50% { opacity: .55; } }
+
+    /* ---------- Authorization modal ---------- */
+    #confirmationModal { background: radial-gradient(60% 50% at 50% 40%, rgba(245,158,11,.1), rgba(2,6,14,.88)); -webkit-backdrop-filter: blur(10px); backdrop-filter: blur(10px); }
+    #confirmationModal:not(.hidden) > .auth-card { animation: modalIn .34s cubic-bezier(.2,.9,.3,1.1) both; }
+    .auth-card { position: relative; overflow: hidden; border-radius: 22px; border: 1px solid transparent;
+      background: linear-gradient(180deg,#0e1424,#080c17) padding-box, linear-gradient(160deg, rgba(251,191,36,.65), rgba(51,65,85,.5) 40%, rgba(0,202,255,.35)) border-box;
+      box-shadow: 0 40px 80px -24px rgba(0,0,0,.95), 0 0 70px -24px rgba(245,158,11,.5), inset 0 1px 0 rgba(255,255,255,.06); }
+    .auth-card::before { content:""; position:absolute; inset:0 0 auto 0; height: 3px; background: linear-gradient(90deg, transparent, #f59e0b, #fcd34d, #f59e0b, transparent); }
+    #modalActionName { display:inline-flex; align-items:center; gap:.5rem; font-size: 14px; letter-spacing: .01em; padding: 7px 14px; border-radius: 999px; color: #fde68a;
+      background: linear-gradient(180deg, rgba(245,158,11,.2), rgba(245,158,11,.08)); border: 1px solid rgba(251,191,36,.5); box-shadow: 0 0 22px -6px rgba(245,158,11,.6), inset 0 1px 0 rgba(255,255,255,.1); }
+    #modalActionName::before { content:""; width:7px; height:7px; border-radius:50%; background:#fbbf24; box-shadow:0 0 8px #fbbf24; }
+    #modalTtlCountdown { font-size: 22px; font-weight: 700; font-variant-numeric: tabular-nums; letter-spacing: -.02em; }
+    #modalProgressBar { background-image: linear-gradient(90deg,#f59e0b,#fbbf24,#fde68a); transition-timing-function: linear; box-shadow: 0 0 14px rgba(251,191,36,.8); }
+    #modalConfirmBtn { position: relative; overflow: hidden; background-image: linear-gradient(180deg,#fbbf24,#f59e0b); transition: transform .15s, box-shadow .2s, filter .2s; }
+    #modalConfirmBtn::after { content:""; position:absolute; inset:0; width:40%; background: linear-gradient(100deg, transparent, rgba(255,255,255,.55), transparent); animation: shine 3.4s infinite; }
+    #modalConfirmBtn:hover { transform: translateY(-1px); box-shadow: 0 12px 28px -8px rgba(245,158,11,.75); filter: brightness(1.06); }
+    #modalConfirmBtn:active { transform: scale(.97); }
+
+    @media (max-height: 760px) and (min-width: 1024px) {
+      #ringOuter { width: 6.5rem; height: 6.5rem; } #ringInner { width: 4.9rem; height: 4.9rem; } #alexaCore { width: 3.3rem; height: 3.3rem; } .echo-halo { width: 14rem; height: 14rem; }
+    }
+    @media (prefers-reduced-motion: reduce) { *, *::before, *::after { animation: none !important; transition-duration: .01ms !important; } }
+  </style>
+</head>
+<body class="bg-slate-950 text-slate-100 flex flex-col min-h-screen lg:h-screen w-screen lg:overflow-hidden overflow-x-hidden select-none font-sans antialiased">
+
+  <!-- Top App Navigation Bar -->
+  <header class="h-14 glass backdrop-blur-md border-b border-slate-700/50 flex items-center justify-between gap-3 px-3 sm:px-5 z-20 shrink-0">
+    <div class="flex items-center gap-3 min-w-0">
+      <div class="w-8 h-8 rounded-full bg-gradient-to-tr from-alexa-blue to-alexa-cyan flex items-center justify-center shadow-lg shadow-alexa-cyan/30 ring-1 ring-white/20 shrink-0">
+        <svg class="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24"><path d="M12 2a10 10 0 1 0 10 10A10 10 0 0 0 12 2zm0 18a8 8 0 1 1 8-8 8 8 0 0 1-8 8z"/><path d="M12 6a6 6 0 1 0 6 6 6 6 0 0 0-6-6zm0 10a4 4 0 1 1 4-4 4 4 0 0 1-4 4z"/></svg>
+      </div>
+      <div class="flex items-center min-w-0">
+        <span class="font-bold tracking-tight text-white text-sm">ContextDesk</span>
+        <span class="ml-2 text-[10px] font-semibold tracking-wider bg-alexa-cyan/10 text-alexa-cyan px-2 py-0.5 rounded-md border border-alexa-cyan/30 whitespace-nowrap">ALEXA+ SIMULATOR</span>
+      </div>
+    </div>
+
+    <!-- Middle MCP Server Status -->
+    <div class="hidden md:flex items-center gap-3 text-xs">
+      <span class="text-slate-500 uppercase tracking-wider text-[10px] font-semibold">Endpoint</span>
+      <code id="endpointLabel" class="bg-slate-950/80 px-2.5 py-1 rounded-md border border-slate-700/60 text-alexa-cyan font-mono text-[11px] shadow-inner">/mcp</code>
+      <div id="connectionPill" class="flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/25 text-[11px] font-medium">
+        <span id="connectionPillDot" class="w-1.5 h-1.5 rounded-full bg-emerald-400 animate-pulse shadow-[0_0_8px_#34d399]"></span>
+        <span id="connectionPillText">Online</span>
+      </div>
+    </div>
+
+    <!-- Right Controls: Audio Speech Toggle & Live Clock -->
+    <div class="flex items-center gap-3 sm:gap-4 text-xs">
+      <button id="toggleAudioBtn" class="flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-slate-800/70 hover:bg-slate-700/80 border border-slate-700/60 text-slate-300 transition duration-200 hover:scale-105 active:scale-95 text-xs">
+        <svg id="audioIconOn" class="w-4 h-4 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15.536 8.464a5 5 0 010 7.072m2.828-9.9a9 9 0 010 12.728M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/></svg>
+        <svg id="audioIconOff" class="w-4 h-4 text-slate-500 hidden" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5.586 15H4a1 1 0 01-1-1v-4a1 1 0 011-1h1.586l4.707-4.707C10.923 3.663 12 4.109 12 5v14c0 .891-1.077 1.337-1.707.707L5.586 15z"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 14l2-2m0 0l2-2m-2 2l-2-2m2 2l2 2"/></svg>
+        <span id="audioStatusText" class="font-medium">Voice On</span>
+      </button>
+      <span id="headerClock" class="hidden sm:inline font-mono tabular-nums text-slate-400 text-xs font-medium tracking-wide">--:--:--</span>
+    </div>
+  </header>
+
+  <!-- Main Split-Screen Container -->
+  <main class="flex-1 flex flex-col lg:flex-row lg:overflow-hidden relative min-h-0">
+
+    <!-- ================================================================= -->
+    <!-- LEFT PANEL: Alexa+ Echo Show Simulator -->
+    <!-- ================================================================= -->
+    <section class="w-full lg:w-1/2 h-[calc(100dvh-3.5rem)] min-h-[620px] lg:h-auto flex flex-col bg-slate-950/40 backdrop-blur-md border-b lg:border-b-0 lg:border-r border-slate-800/80 relative z-10">
+
+      <!-- Ambient Echo Show Glowing Lightbar -->
+      <div id="alexaLightbar" class="h-1.5 w-full bg-gradient-to-r from-transparent via-alexa-cyan to-transparent opacity-30 transition-all duration-300"></div>
+
+      <!-- Echo Show Stage Area -->
+      <div class="flex-1 flex flex-col p-4 sm:p-6 overflow-hidden min-h-0">
+
+        <!-- Top Header & Visualizer -->
+        <div class="flex items-center justify-between gap-3 pb-3 border-b border-slate-700/40">
+          <div class="min-w-0">
+            <h1 class="text-[11px] uppercase tracking-[.18em] font-bold text-alexa-cyan flex items-center gap-2">
+              <span class="w-2 h-2 rounded-full bg-alexa-cyan animate-ping shrink-0"></span>
+              <span class="truncate">Echo Show 10 • Alexa+ Voice Assistant</span>
+            </h1>
+            <p id="alexaSubStatus" class="text-xs text-slate-400 mt-1 truncate">Ready for commands. Tap microphone or select a trigger.</p>
+          </div>
+
+          <!-- Waveform Visualizer -->
+          <div id="waveform" class="flex items-end gap-1 h-7 px-3 py-1 rounded-full bg-slate-900 border border-slate-700/60 shrink-0">
+            <span class="wave-bar w-1 bg-alexa-cyan rounded-full h-2"></span>
+            <span class="wave-bar w-1 bg-alexa-cyan rounded-full h-3"></span>
+            <span class="wave-bar w-1 bg-alexa-cyan rounded-full h-2"></span>
+            <span class="wave-bar w-1 bg-alexa-cyan rounded-full h-4"></span>
+            <span class="wave-bar w-1 bg-alexa-cyan rounded-full h-2"></span>
+          </div>
+        </div>
+
+        <!-- Central Alexa Pulse Ring Display (Echo Show screen) -->
+        <div class="echo-screen shrink-0 flex flex-col items-center justify-center">
+          <div class="echo-halo" aria-hidden="true"></div>
+          <div class="py-3 flex flex-col items-center justify-center shrink-0 relative z-[2]">
+            <div class="relative flex items-center justify-center">
+              <div id="ringOuter" class="w-32 h-32 rounded-full border border-alexa-cyan/20 flex items-center justify-center alexa-ring transition-all duration-500">
+                <div id="ringInner" class="w-24 h-24 rounded-full border-2 border-dashed border-alexa-cyan/40 flex items-center justify-center transition-all duration-300">
+                  <div id="alexaCore" class="w-16 h-16 rounded-full bg-gradient-to-br from-alexa-cyan via-alexa-blue to-indigo-700 flex items-center justify-center shadow-lg shadow-alexa-cyan/30 text-white transition-transform duration-300 transform scale-100">
+                    <svg id="coreMicSvg" class="w-7 h-7" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+                    <div id="coreSpinnerSvg" class="hidden w-7 h-7 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div id="voiceStatusBadge" class="mt-3 text-xs font-medium px-3 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300">
+            Idle • Awaiting Voice Intent
+          </div>
+        </div>
+
+        <!-- Chat History -->
+        <div id="chatHistory" class="flex-1 min-h-[8rem] overflow-y-auto space-y-4 pr-2 my-3 border border-slate-800/80 rounded-2xl p-3.5 bg-slate-950/40">
+          <div class="flex items-start gap-3 text-xs">
+            <div class="w-6 h-6 rounded-full bg-alexa-blue/30 border border-alexa-cyan/40 flex items-center justify-center shrink-0 text-alexa-cyan font-bold text-[10px]">A+</div>
+            <div class="bg-slate-900 border border-slate-800/80 rounded-2xl rounded-tl-none p-3.5 max-w-[88%] text-slate-200 shadow-md">
+              <p class="font-medium text-alexa-cyan mb-1">Alexa+ Operational Assistant</p>
+              <p>Welcome to ContextDesk. Connected directly to your local development workspace via MCP Streamable HTTP. You can ask me to inspect build breakages, safely restart backend services, or search codebase documentation.</p>
+            </div>
+          </div>
+        </div>
+
+        <!-- Quick-Trigger Action Buttons -->
+        <div class="pt-1 pb-3 shrink-0">
+          <div class="text-[10px] font-semibold text-slate-400 mb-2 uppercase tracking-[.16em] flex items-center justify-between">
+            <span>Quick-Trigger Intent Shortcuts</span>
+            <span class="text-slate-600 font-normal normal-case tracking-normal hidden sm:inline">Click to trigger intent</span>
+          </div>
+          <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5">
+            <button onclick="handleTriggerPrompt('why did my build fail')" class="trigger t-rose group text-left p-3 rounded-xl bg-slate-900/70 hover:bg-slate-800/80 border border-rose-500/30 hover:border-rose-400/60 shadow-sm">
+              <div class="flex items-center gap-1.5 text-rose-400 font-semibold text-xs mb-1">
+                <span class="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_8px_#f43f5e]"></span>
+                <span>Inspect Build</span>
+              </div>
+              <p class="text-[11px] text-slate-400 truncate group-hover:text-white transition-colors">"Alexa, why did my build fail?"</p>
+            </button>
+
+            <button onclick="handleTriggerPrompt('restart payment service')" class="trigger t-amber group text-left p-3 rounded-xl bg-slate-900/70 hover:bg-slate-800/80 border border-amber-500/30 hover:border-amber-400/60 shadow-sm">
+              <div class="flex items-center gap-1.5 text-amber-400 font-semibold text-xs mb-1">
+                <span class="w-2 h-2 rounded-full bg-amber-500 shadow-[0_0_8px_#f59e0b]"></span>
+                <span>Restart Service</span>
+              </div>
+              <p class="text-[11px] text-slate-400 truncate group-hover:text-white transition-colors">"Alexa, restart payment service"</p>
+            </button>
+
+            <button onclick="handleTriggerPrompt('search docs for payment port')" class="trigger t-cyan group text-left p-3 rounded-xl bg-slate-900/70 hover:bg-slate-800/80 border border-alexa-cyan/30 hover:border-alexa-cyan/60 shadow-sm">
+              <div class="flex items-center gap-1.5 text-alexa-cyan font-semibold text-xs mb-1">
+                <span class="w-2 h-2 rounded-full bg-alexa-cyan shadow-[0_0_8px_#00CAFF]"></span>
+                <span>Query Docs</span>
+              </div>
+              <p class="text-[11px] text-slate-400 truncate group-hover:text-white transition-colors">"Alexa, search docs for payment port"</p>
+            </button>
+          </div>
+        </div>
+
+        <!-- Input Bar -->
+        <div class="pt-3 border-t border-slate-700/40 flex items-center gap-2.5 shrink-0">
+          <button id="micBtn" class="w-11 h-11 rounded-full bg-gradient-to-tr from-alexa-blue to-alexa-cyan hover:brightness-110 flex items-center justify-center text-white shadow-lg shadow-alexa-cyan/25 ring-1 ring-white/20 transition duration-200 transform active:scale-95 shrink-0" title="Click to speak (Web Speech API)">
+            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"/></svg>
+          </button>
+          <div class="flex-1 relative">
+            <input id="textInput" type="text" placeholder="Speak or type a command for Alexa+..." class="w-full bg-slate-900/80 backdrop-blur-md border border-slate-700/60 rounded-full pl-5 pr-12 py-3 text-xs text-white placeholder-slate-500 shadow-inner focus:outline-none focus:border-alexa-cyan focus:ring-2 focus:ring-alexa-cyan/30 focus:shadow-[0_0_24px_-6px_rgba(0,202,255,.5)] transition" />
+            <button id="sendBtn" class="absolute right-1.5 top-1/2 -translate-y-1/2 w-8 h-8 flex items-center justify-center rounded-full text-slate-400 hover:text-white hover:bg-gradient-to-tr hover:from-alexa-blue hover:to-alexa-cyan hover:scale-110 active:scale-90 transition duration-200">
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 5l7 7-7 7M5 5l7 7-7 7"/></svg>
+            </button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ================================================================= -->
+    <!-- RIGHT PANEL: MCP Protocol Inspector -->
+    <!-- ================================================================= -->
+    <section id="inspectorSection" class="w-full lg:w-1/2 h-[75dvh] min-h-[420px] lg:h-auto flex flex-col overflow-hidden">
+      <div class="h-11 bg-[#0a1019]/90 border-b border-slate-700/50 flex items-center justify-between gap-2 px-4 shrink-0 text-xs">
+        <div class="flex items-center gap-2.5 min-w-0">
+          <span class="hidden sm:flex items-center gap-1.5 mr-1" aria-hidden="true"><i class="w-2.5 h-2.5 rounded-full bg-rose-500/80"></i><i class="w-2.5 h-2.5 rounded-full bg-amber-400/80"></i><i class="w-2.5 h-2.5 rounded-full bg-emerald-400/80"></i></span>
+          <svg class="w-4 h-4 text-emerald-400 shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 9l3 3-3 3m5 0h3M5 20h14a2 2 0 002-2V6a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"/></svg>
+          <span class="font-bold text-slate-200 tracking-wide truncate">MCP PROTOCOL INSPECTOR</span>
+          <span class="hidden xl:inline text-[10px] bg-slate-800/80 border border-slate-700/60 text-slate-300 px-2 py-0.5 rounded-md font-mono">Streamable HTTP (2025-11-25+)</span>
+        </div>
+        <div class="flex items-center gap-1.5 shrink-0">
+          <button onclick="pingServerHandshake()" class="term-btn px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-mono">Initialize</button>
+          <button onclick="listRegisteredTools()" class="term-btn px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-slate-700 text-slate-300 hover:text-white text-[11px] font-mono">tools/list</button>
+          <button onclick="clearInspector()" class="term-btn px-2.5 py-1 rounded-md bg-slate-800/80 hover:bg-rose-900/50 hover:text-rose-300 text-slate-400 text-[11px] font-mono">Clear</button>
+        </div>
+      </div>
+
+      <div id="inspectorLog" class="flex-1 overflow-y-auto p-4 font-mono text-xs space-y-3.5">
+        <div class="p-3 rounded-lg bg-slate-900/70 border border-slate-800 text-slate-400 text-[11px] leading-relaxed">
+          <p class="font-semibold text-slate-300 mb-1 flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 text-alexa-cyan" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clip-rule="evenodd"></path></svg>
+            Model Context Protocol Live Trace
+          </p>
+          <p>Capturing raw JSON-RPC 2.0 payloads over Streamable HTTP. Real-time Server-Sent Events (<code class="text-alexa-cyan">text/event-stream</code>) with intermediate progress events (<code class="text-amber-400">notifications/progress</code>) and final envelopes will be rendered here.</p>
+        </div>
+      </div>
+
+      <div class="h-8 bg-[#080c15] border-t border-slate-700/50 flex items-center justify-between px-4 text-[11px] text-slate-400 font-mono shrink-0">
+        <div class="flex items-center gap-3 min-w-0">
+          <span id="sessionTag" class="truncate">Session: none</span>
+          <span id="eventsCount">Events: 0</span>
+        </div>
+        <div class="flex items-center gap-2 shrink-0">
+          <span id="sseStatusDot" class="conn-dot" data-state="online"></span>
+          <span id="sseStatusText">SSE Decoder Ready</span>
+        </div>
+      </div>
+    </section>
+  </main>
+
+  <!-- Two-Tier Confirmation Modal -->
+  <div id="confirmationModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 flex items-center justify-center p-4 hidden">
+    <div class="auth-card max-w-md w-full p-6 pt-7">
+      <div class="flex items-center gap-3.5 mb-4">
+        <div class="w-11 h-11 rounded-xl bg-gradient-to-br from-amber-400/25 to-amber-600/10 text-amber-300 flex items-center justify-center shrink-0 border border-amber-400/40 shadow-[0_0_24px_-6px_rgba(245,158,11,.7)]">
+          <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>
+        </div>
+        <div>
+          <h3 class="font-bold text-white text-lg tracking-tight leading-tight">Confirmation Required</h3>
+          <p class="text-[11px] text-amber-300/90 font-semibold tracking-wide mt-0.5">Two-Tier Operational Safety Barrier (Single-Use Token)</p>
+        </div>
+      </div>
+      <p class="text-xs text-slate-400 leading-relaxed mb-3">
+        Alexa+ is requesting permission to execute an operational service mutation:
+      </p>
+      <div class="mb-4 flex items-center gap-3">
+        <span class="text-[10px] font-semibold uppercase tracking-[.16em] text-slate-500">Action</span>
+        <span id="modalActionName" class="font-mono font-bold text-white bg-slate-800 px-2 py-0.5 rounded border border-slate-700">restart_service</span>
+      </div>
+
+      <div class="bg-slate-950/80 p-3.5 rounded-xl border border-slate-700/50 mb-4 font-mono text-[11px] space-y-2.5 shadow-inner">
+        <div class="flex justify-between items-end text-slate-400">
+          <span class="uppercase tracking-[.14em] text-[10px] font-semibold">Challenge TTL:</span>
+          <span id="modalTtlCountdown" class="text-amber-400 font-bold">60s</span>
+        </div>
+        <div class="w-full bg-slate-800/80 rounded-full h-2 overflow-hidden ring-1 ring-black/40">
+          <div id="modalProgressBar" class="bg-amber-400 h-2 rounded-full transition-all duration-1000" style="width: 100%;"></div>
+        </div>
+        <div class="text-slate-400 truncate pt-1 border-t border-slate-800">
+          <span class="uppercase tracking-[.14em] text-[10px] font-semibold">HMAC Token:</span>
+          <span id="modalTokenPreview" class="text-slate-300 text-[10px] ml-1">...</span>
+        </div>
+      </div>
+
+      <div class="flex flex-wrap gap-1.5 mb-5 text-[10px] font-semibold">
+        <span class="px-2 py-0.5 rounded-full border border-emerald-500/30 bg-emerald-500/10 text-emerald-300">Single-use</span>
+        <span class="px-2 py-0.5 rounded-full border border-sky-500/30 bg-sky-500/10 text-sky-300">HMAC-signed</span>
+        <span class="px-2 py-0.5 rounded-full border border-slate-600/50 bg-slate-800/60 text-slate-300">Local loopback</span>
+      </div>
+
+      <div class="flex flex-col-reverse sm:flex-row items-stretch sm:items-center justify-end gap-3">
+        <button onclick="closeConfirmationModal(false)" class="px-4 py-2.5 rounded-xl bg-transparent hover:bg-slate-800/80 border border-slate-600/60 hover:border-slate-500 text-slate-300 hover:text-white font-medium text-xs transition duration-200 active:scale-95">Cancel Action</button>
+        <button id="modalConfirmBtn" onclick="confirmServiceExecution()" class="px-5 py-2.5 rounded-xl bg-amber-500 hover:bg-amber-400 text-slate-950 font-bold text-xs flex items-center justify-center gap-1.5 shadow-lg shadow-amber-500/25">
+          <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>
+          Confirm & Execute
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Strict XSS Sanitizer for all user and dynamic server outputs
+    function escapeHtml(str) {
+      if (str === null || str === undefined) return '';
+      return String(str)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Determine target endpoint dynamically
+    const MCP_ENDPOINT = window.location.origin.startsWith('http')
+      ? `${window.location.origin}/mcp`
+      : 'http://127.0.0.1:8000/mcp';
+
+    document.getElementById('endpointLabel').textContent = MCP_ENDPOINT.replace(/^https?:\/\//, '');
+
+    let sessionId = null;
+    let requestIdCounter = 1;
+    let eventLogCounter = 0;
+    let voiceAudioEnabled = true;
+    let pendingConfirmation = null;
+    let countdownInterval = null;
+
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    let recognition = null;
+    let isListening = false;
+
+    const chatHistory = document.getElementById('chatHistory');
+    const inspectorLog = document.getElementById('inspectorLog');
+    const textInput = document.getElementById('textInput');
+    const micBtn = document.getElementById('micBtn');
+    const sendBtn = document.getElementById('sendBtn');
+    const ringOuter = document.getElementById('ringOuter');
+    const ringInner = document.getElementById('ringInner');
+    const waveform = document.getElementById('waveform');
+    const voiceStatusBadge = document.getElementById('voiceStatusBadge');
+    const alexaSubStatus = document.getElementById('alexaSubStatus');
+    const alexaLightbar = document.getElementById('alexaLightbar');
+    const headerClock = document.getElementById('headerClock');
+    const eventsCount = document.getElementById('eventsCount');
+    const sessionTag = document.getElementById('sessionTag');
+
+    function updateClock() {
+      const now = new Date();
+      headerClock.textContent = now.toLocaleTimeString('en-US', { hour12: false });
+    }
+    setInterval(updateClock, 1000);
+    updateClock();
+
+    document.getElementById('toggleAudioBtn').addEventListener('click', () => {
+      voiceAudioEnabled = !voiceAudioEnabled;
+      document.getElementById('audioIconOn').classList.toggle('hidden', !voiceAudioEnabled);
+      document.getElementById('audioIconOff').classList.toggle('hidden', voiceAudioEnabled);
+      document.getElementById('audioStatusText').textContent = voiceAudioEnabled ? 'Voice On' : 'Voice Muted';
+      if (!voiceAudioEnabled && window.speechSynthesis) window.speechSynthesis.cancel();
+    });
+
+    function setAlexaState(state) {
+      ringOuter.classList.remove('alexa-ring-active', 'alexa-pulse-ring');
+      waveform.classList.remove('wave-active');
+      document.getElementById('coreMicSvg').classList.remove('hidden');
+      document.getElementById('coreSpinnerSvg').classList.add('hidden');
+
+      if (state === 'listening') {
+        voiceStatusBadge.textContent = 'Listening...';
+        voiceStatusBadge.className = 'mt-3 text-xs font-semibold px-3 py-0.5 rounded-full bg-alexa-cyan/20 border border-alexa-cyan text-alexa-cyan animate-pulse';
+        alexaSubStatus.textContent = 'Listening to your voice command...';
+        ringOuter.classList.add('alexa-ring-active', 'alexa-pulse-ring');
+        waveform.classList.add('wave-active');
+        alexaLightbar.className = 'h-1.5 w-full bg-alexa-cyan opacity-100 shadow-lg shadow-alexa-cyan transition-all';
+      } else if (state === 'thinking') {
+        voiceStatusBadge.textContent = 'Thinking (MCP Streaming)...';
+        voiceStatusBadge.className = 'mt-3 text-xs font-semibold px-3 py-0.5 rounded-full bg-indigo-500/20 border border-indigo-400 text-indigo-300';
+        alexaSubStatus.textContent = 'Contacting ContextDesk MCP over Streamable HTTP...';
+        document.getElementById('coreMicSvg').classList.add('hidden');
+        document.getElementById('coreSpinnerSvg').classList.remove('hidden');
+        ringInner.classList.add('animate-spin');
+        alexaLightbar.className = 'h-1.5 w-full bg-gradient-to-r from-alexa-cyan via-indigo-500 to-alexa-cyan opacity-90 transition-all';
+      } else if (state === 'speaking') {
+        voiceStatusBadge.textContent = 'Alexa+ Speaking';
+        voiceStatusBadge.className = 'mt-3 text-xs font-semibold px-3 py-0.5 rounded-full bg-emerald-500/20 border border-emerald-400 text-emerald-300';
+        alexaSubStatus.textContent = 'Responding with diagnostic details...';
+        waveform.classList.add('wave-active');
+        ringOuter.classList.add('alexa-ring-active');
+        alexaLightbar.className = 'h-1.5 w-full bg-gradient-to-r from-emerald-400 via-alexa-cyan to-emerald-400 opacity-90 transition-all';
+      } else {
+        voiceStatusBadge.textContent = 'Idle • Awaiting Voice Intent';
+        voiceStatusBadge.className = 'mt-3 text-xs font-medium px-3 py-0.5 rounded-full bg-slate-900 border border-slate-800 text-slate-300';
+        alexaSubStatus.textContent = 'Ready for commands. Tap microphone or select a trigger.';
+        ringInner.classList.remove('animate-spin');
+        alexaLightbar.className = 'h-1.5 w-full bg-gradient-to-r from-transparent via-alexa-cyan to-transparent opacity-30 transition-all duration-300';
+      }
+    }
+
+    if (SpeechRecognition) {
+      recognition = new SpeechRecognition();
+      recognition.continuous = false;
+      recognition.interimResults = false;
+      recognition.lang = 'en-US';
+      recognition.onstart = () => { isListening = true; setAlexaState('listening'); };
+      recognition.onresult = (event) => {
+        const transcript = event.results[0][0].transcript;
+        textInput.value = transcript;
+        processUserQuery(transcript);
+      };
+      recognition.onerror = () => { setAlexaState('idle'); isListening = false; };
+      recognition.onend = () => { isListening = false; if (voiceStatusBadge.textContent === 'Listening...') setAlexaState('idle'); };
+    }
+
+    micBtn.addEventListener('click', () => {
+      if (!recognition) {
+        alert('Web Speech API is not supported in this browser. Please type your query in the text box.');
+        return;
+      }
+      if (isListening) {
+        recognition.stop();
+      } else {
+        try { recognition.start(); } catch (e) { console.error(e); }
+      }
+    });
+
+    function speakText(text) {
+      if (!voiceAudioEnabled || !('speechSynthesis' in window)) return;
+      window.speechSynthesis.cancel();
+      const clean = text.replace(/\*\*|__|```|`|#|-/g, '').replace(/Line \d+:/g, '').replace(/\{.*\}/g, '').trim();
+      const utterance = new SpeechSynthesisUtterance(clean);
+      utterance.rate = 1.05;
+      utterance.pitch = 1.0;
+      utterance.onstart = () => setAlexaState('speaking');
+      utterance.onend = () => setAlexaState('idle');
+      utterance.onerror = () => setAlexaState('idle');
+      window.speechSynthesis.speak(utterance);
+    }
+
+    function appendUserMessage(text) {
+      const bubble = document.createElement('div');
+      bubble.className = 'flex items-start gap-3 justify-end text-xs';
+      bubble.innerHTML = `
+        <div class="bg-gradient-to-r from-alexa-blue to-indigo-600 rounded-2xl rounded-tr-none p-3.5 max-w-[85%] text-white shadow-md">
+          <p class="font-medium text-[11px] text-alexa-cyan/90 mb-0.5">You</p>
+          <p>${escapeHtml(text)}</p>
+        </div>
+        <div class="w-6 h-6 rounded-full bg-slate-800 border border-slate-700 flex items-center justify-center shrink-0 text-slate-300 font-bold text-[10px]">U</div>
+      `;
+      chatHistory.appendChild(bubble);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function appendAlexaResponse(title, text, richCardHtml = '') {
+      const bubble = document.createElement('div');
+      bubble.className = 'flex items-start gap-3 text-xs';
+      bubble.innerHTML = `
+        <div class="w-6 h-6 rounded-full bg-alexa-blue/30 border border-alexa-cyan/40 flex items-center justify-center shrink-0 text-alexa-cyan font-bold text-[10px]">A+</div>
+        <div class="bg-slate-900 border border-slate-800 rounded-2xl rounded-tl-none p-3.5 max-w-[90%] text-slate-200 shadow-md">
+          <p class="font-semibold text-alexa-cyan mb-1 flex items-center gap-1.5"><span>${escapeHtml(title)}</span></p>
+          <div class="text-slate-300 leading-relaxed">${escapeHtml(text)}</div>
+          ${richCardHtml ? `<div class="mt-3">${richCardHtml}</div>` : ''}
+        </div>
+      `;
+      chatHistory.appendChild(bubble);
+      chatHistory.scrollTop = chatHistory.scrollHeight;
+    }
+
+    function highlightJson(json) {
+      const str = typeof json === 'string' ? json : JSON.stringify(json, null, 2);
+      return str
+        .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+        .replace(/("(\\u[a-zA-Z0-9]{4}|\\[^u]|[^\\"])*"(\s*:)?|\b(true|false|null)\b|-?\d+(?:\.\d*)?(?:[eE][+\-]?\d+)?)/g, function (match) {
+          let cls = 'json-number';
+          if (/^"/.test(match)) {
+            if (/:$/.test(match)) {
+              cls = 'json-key';
+            } else {
+              cls = 'json-string';
+              if (match.includes('[REDACTED]')) return `<span class="json-redacted">[REDACTED]</span>`;
+            }
+          } else if (/true|false/.test(match)) cls = 'json-boolean';
+          else if (/null/.test(match)) cls = 'json-null';
+          return '<span class="' + cls + '">' + match + '</span>';
+        });
+    }
+
+    function logInspectorBlock(type, title, jsonPayload, badgeText = '', badgeColor = 'bg-slate-800 text-slate-300') {
+      eventLogCounter++;
+      eventsCount.textContent = `Events: ${eventLogCounter}`;
+      const block = document.createElement('div');
+      block.className = 'rounded-xl bg-[#0d1424] border border-slate-800/90 overflow-hidden shadow-sm transition hover:border-slate-700';
+      const time = new Date().toLocaleTimeString('en-US', { hour12: false }) + '.' + String(new Date().getMilliseconds()).padStart(3, '0');
+      let headerIcon = '📤';
+      if (type === 'sse-progress') headerIcon = '⚡';
+      if (type === 'sse-final') headerIcon = '📥';
+
+      block.innerHTML = `
+        <div class="flex items-center justify-between px-3 py-2 bg-slate-900/90 border-b border-slate-800/80 text-[11px]">
+          <div class="flex items-center gap-2">
+            <span>${headerIcon}</span>
+            <span class="font-bold text-white font-mono">${escapeHtml(title)}</span>
+            ${badgeText ? `<span class="px-2 py-0.5 rounded text-[10px] font-semibold ${badgeColor}">${escapeHtml(badgeText)}</span>` : ''}
+          </div>
+          <span class="text-slate-500 font-mono text-[10px]">${time}</span>
+        </div>
+        <div class="p-3 overflow-x-auto">
+          <pre class="font-mono text-[11px] leading-relaxed text-slate-300">${highlightJson(jsonPayload)}</pre>
+        </div>
+      `;
+      inspectorLog.appendChild(block);
+      inspectorLog.scrollTop = inspectorLog.scrollHeight;
+    }
+
+    function clearInspector() {
+      inspectorLog.innerHTML = `<div class="p-3 rounded-lg bg-slate-900/70 border border-slate-800 text-slate-400 text-[11px]"><p class="font-semibold text-slate-300 mb-1">Inspector Log Cleared</p><p>Ready to trace live JSON-RPC & Server-Sent Events.</p></div>`;
+      eventLogCounter = 0;
+      eventsCount.textContent = `Events: 0`;
+    }
+
+    async function executeMcpCall(method, params, onProgress) {
+      const reqId = requestIdCounter++;
+      const actualParams = Object.assign({}, params);
+
+      // Automatically inject _meta: { progressToken: "pt-" + reqId } for tools/call
+      if (method === 'tools/call') {
+        actualParams._meta = Object.assign({ progressToken: `pt-${reqId}` }, actualParams._meta || {});
+      }
+
+      const rpcPayload = { jsonrpc: '2.0', id: reqId, method: method, params: actualParams };
+      logInspectorBlock('request', `POST /mcp [${method}]`, rpcPayload, `ID: ${reqId}`, 'bg-blue-500/20 text-blue-300 border border-blue-500/30');
+
+      try {
+        const response = await fetch(MCP_ENDPOINT, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            ...(sessionId ? { 'MCP-Session-Id': sessionId } : {})
+          },
+          body: JSON.stringify(rpcPayload)
+        });
+
+        const newSession = response.headers.get('mcp-session-id');
+        if (newSession) {
+          sessionId = newSession;
+          sessionTag.textContent = `Session: ${sessionId.substring(0, 14)}...`;
+        }
+
+        const contentType = response.headers.get('content-type') || '';
+        if (!contentType.includes('text/event-stream')) {
+          const resultJson = await response.json();
+          logInspectorBlock('response', `RESPONSE [${method}]`, resultJson, 'HTTP 200 JSON', 'bg-emerald-500/20 text-emerald-300');
+          return resultJson;
+        }
+
+        const reader = response.body.getReader();
+        const decoder = new TextDecoder('utf-8');
+        let buffer = '';
+        let finalEnvelope = null;
+
+        while (true) {
+          const { done, value } = await reader.read();
+          if (done) break;
+
+          buffer += decoder.decode(value, { stream: true });
+          const messages = buffer.split('\n\n');
+          buffer = messages.pop();
+
+          for (const msg of messages) {
+            if (!msg.trim()) continue;
+            const lines = msg.split('\n');
+            for (const line of lines) {
+              if (line.startsWith('data: ')) {
+                const dataJsonStr = line.substring(6).trim();
+                try {
+                  const eventObj = JSON.parse(dataJsonStr);
+                  if (eventObj.method === 'notifications/progress') {
+                    logInspectorBlock('sse-progress', 'SSE STREAM: notifications/progress', eventObj, `Progress ${Math.round(eventObj.params.progress * 100)}%`, 'bg-amber-500/20 text-amber-300 border border-amber-500/30');
+                    onProgress && onProgress(eventObj.params.message);
+                  } else {
+                    finalEnvelope = eventObj;
+                    const isErr = !!eventObj.error;
+                    logInspectorBlock('sse-final', `SSE STREAM: Final Envelope`, eventObj, isErr ? `Error ${eventObj.error.code}` : 'Result OK', isErr ? 'bg-rose-500/20 text-rose-300 border border-rose-500/30' : 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30');
+                  }
+                } catch (pe) {
+                  console.error('Failed to parse SSE JSON:', pe);
+                }
+              }
+            }
+          }
+        }
+        return finalEnvelope;
+      } catch (err) {
+        logInspectorBlock('error', 'Transport Error', { error: err.message }, 'Failed', 'bg-rose-500/20 text-rose-300');
+        throw err;
+      }
+    }
+
+    async function processUserQuery(query) {
+      if (!query || !query.trim()) return;
+      const clean = query.trim().toLowerCase();
+      appendUserMessage(query);
+      textInput.value = '';
+      setAlexaState('thinking');
+
+      try {
+        // Intent A: Privacy & Audio Telemetry Query
+        if (clean.includes('privacy') || clean.includes('record') || clean.includes('voice') || clean.includes('audio')) {
+          const privacyMsg = "ContextDesk runs entirely on your local machine. No voice recordings or telemetry are stored or transmitted. Voice recognition is processed through your browser's native Web Speech API and dispatched over local loopback MCP.";
+          appendAlexaResponse('Privacy & Data Boundary', privacyMsg);
+          speakText(privacyMsg);
+          setAlexaState('idle');
+          return;
+        }
+
+        // Intent B: Help & Capabilities Query
+        if (clean.includes('what can you do') || clean.includes('help') || clean.includes('who are you') || clean.includes('capabilities')) {
+          const helpMsg = "I am ContextDesk, an Alexa+ operational context agent. I can deterministically inspect build logs, verify service health, and execute authorized state operations behind a single-use two-tier confirmation barrier.";
+          appendAlexaResponse('Alexa+ Capabilities & Help', helpMsg);
+          speakText(helpMsg);
+          setAlexaState('idle');
+          return;
+        }
+
+        // Intent 1: Inspect Build Breakage
+        if (clean.includes('build') || clean.includes('fail') || clean.includes('log') || clean.includes('error')) {
+          const resp = await executeMcpCall('tools/call', {
+            name: 'inspect_build_logs',
+            arguments: { file_path: 'build.log', max_lines: 45 }
+          }, (progMsg) => { alexaSubStatus.textContent = progMsg; });
+
+          if (resp && resp.result) {
+            const toolData = JSON.parse(resp.result.content[0].text);
+            const speakable = `I analyzed your build log. Fault identified at ${toolData.culprit_location || 'unknown'}. All credentials have been redacted.`;
+
+            // Dynamically render server's parsed diagnostic_summary and culprit_location with escapeHtml
+            const card = `
+              <div class="bg-slate-950 p-3.5 rounded-xl border border-rose-500/30 font-mono text-[11px] space-y-2">
+                <div class="flex items-center justify-between pb-2 border-b border-slate-800">
+                  <span class="text-rose-400 font-bold flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-rose-500"></span>${toolData.error_count} Errors in ${escapeHtml(toolData.file_path)}</span>
+                  <span class="bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 px-2 py-0.5 rounded text-[10px] font-bold">SECRETS [REDACTED]</span>
+                </div>
+                <div class="text-slate-300 font-sans text-xs">
+                  <strong>Culprit Location:</strong> <span class="font-mono text-rose-300">${escapeHtml(toolData.culprit_location || 'Not extracted')}</span>
+                </div>
+                <div class="bg-slate-900 p-2.5 rounded border border-slate-800/80 text-rose-300 whitespace-pre-wrap text-[10px]">${escapeHtml(toolData.diagnostic_summary)}</div>
+              </div>
+            `;
+            appendAlexaResponse('Build Diagnostic Complete', 'Here is the deterministic diagnostic report from your build logs:', card);
+            speakText(speakable);
+          }
+        }
+
+        // Intent 2: Restart Service (Two-Tier Confirmation Barrier)
+        else if (clean.includes('restart') || clean.includes('payment service') || clean.includes('action')) {
+          const resp = await executeMcpCall('tools/call', {
+            name: 'execute_service_action',
+            arguments: { action: 'restart_service' }
+          }, (progMsg) => { alexaSubStatus.textContent = progMsg; });
+
+          if (resp && resp.result) {
+            const actionData = JSON.parse(resp.result.content[0].text);
+            if (actionData.status === 'confirmation_required') {
+              openConfirmationModal(actionData);
+              const speakable = `Restarting the service mutates infrastructure state. I have generated a 60-second single-use confirmation challenge. Please confirm to execute.`;
+              appendAlexaResponse('Two-Tier Confirmation Barrier', 'This operation mutates infrastructure state. Please confirm execution on the prompt:', `
+                <div class="bg-slate-950 p-3 rounded-lg border border-amber-500/40 text-amber-300 text-xs flex items-center justify-between">
+                  <span>Action: <strong>${escapeHtml(actionData.action)}</strong></span>
+                  <span class="text-[11px] bg-amber-500/20 px-2 py-0.5 rounded border border-amber-500/40">Expires in 60s (Single-Use)</span>
+                </div>
+              `);
+              speakText(speakable);
+            }
+          }
+        }
+
+        // Intent 3: Query Codebase Context & Ports
+        else if (clean.includes('doc') || clean.includes('port') || clean.includes('search') || clean.includes('architecture')) {
+          const resp = await executeMcpCall('tools/call', {
+            name: 'query_codebase_context',
+            arguments: { query: 'payment port and architecture' }
+          }, (progMsg) => { alexaSubStatus.textContent = progMsg; });
+
+          if (resp && resp.result) {
+            const searchData = JSON.parse(resp.result.content[0].text);
+            const speakable = `I found the documentation in architecture dot md. Payment service runs on port 8081, and Auth service runs on port 8080.`;
+            let sectionsHtml = searchData.results.map(r => `
+              <div class="p-2 rounded bg-slate-900 border border-slate-800 text-[11px]">
+                <div class="flex justify-between font-semibold text-alexa-cyan mb-1">
+                  <span>${escapeHtml(r.file_path)} • ${escapeHtml(r.section)}</span>
+                  <span class="text-slate-500 text-[10px]">Rank: ${r.relevance_rank}</span>
+                </div>
+                <div class="text-slate-300 text-[10px] leading-relaxed">${escapeHtml(r.matched_snippet)}</div>
+              </div>
+            `).join('');
+
+            const card = `
+              <div class="bg-slate-950 p-3 rounded-xl border border-alexa-cyan/30 space-y-2">
+                <div class="text-xs font-semibold text-alexa-cyan flex items-center justify-between pb-1.5 border-b border-slate-800">
+                  <span>Found ${searchData.results_count} Relevant Sections</span>
+                  <span class="text-[10px] text-slate-400 font-mono">SQLite FTS5</span>
+                </div>
+                ${sectionsHtml}
+              </div>
+            `;
+            appendAlexaResponse('Architecture Documentation Found', 'Here are the service port mappings from ./workspace/docs:', card);
+            speakText(speakable);
+          }
+        }
+
+        // Fallback: Query documentation; if 0 results, provide graceful guidance
+        else {
+          const resp = await executeMcpCall('tools/call', { name: 'query_codebase_context', arguments: { query: clean } });
+          if (resp && resp.result) {
+            const searchData = JSON.parse(resp.result.content[0].text);
+            if (!searchData.results || searchData.results.length === 0 || searchData.results_count === 0) {
+              const noMatchMsg = `I searched the local workspace for '${escapeHtml(query)}', but found no matching records. You can ask me to inspect build logs or restart services.`;
+              appendAlexaResponse('Workspace Search: No Results', noMatchMsg);
+              speakText(`I searched the local workspace for '${query}', but found no matching records. You can ask me to inspect build logs or restart services.`);
+            } else {
+              let sectionsHtml = searchData.results.map(r => `
+                <div class="p-2 rounded bg-slate-900 border border-slate-800 text-[11px]">
+                  <div class="flex justify-between font-semibold text-alexa-cyan mb-1">
+                    <span>${escapeHtml(r.file_path)} • ${escapeHtml(r.section)}</span>
+                    <span class="text-slate-500 text-[10px]">Rank: ${r.relevance_rank}</span>
+                  </div>
+                  <div class="text-slate-300 text-[10px] leading-relaxed">${escapeHtml(r.matched_snippet)}</div>
+                </div>
+              `).join('');
+
+              const card = `
+                <div class="bg-slate-950 p-3 rounded-xl border border-alexa-cyan/30 space-y-2">
+                  <div class="text-xs font-semibold text-alexa-cyan flex items-center justify-between pb-1.5 border-b border-slate-800">
+                    <span>Found ${searchData.results_count} Relevant Sections</span>
+                    <span class="text-[10px] text-slate-400 font-mono">SQLite FTS5</span>
+                  </div>
+                  ${sectionsHtml}
+                </div>
+              `;
+              appendAlexaResponse('Documentation Results', `Here are the matching records for '${escapeHtml(query)}':`, card);
+              speakText(`I found ${searchData.results_count} matching sections for your query in the workspace documentation.`);
+            }
+          }
+        }
+      } catch (err) {
+        appendAlexaResponse('Connection Error', `Failed to contact ContextDesk MCP at ${escapeHtml(MCP_ENDPOINT)}. Make sure server.py is running.`);
+        speakText('I could not reach the ContextDesk server. Please check your loopback connection.');
+        setAlexaState('idle');
+      }
+    }
+
+    function openConfirmationModal(data) {
+      pendingConfirmation = data;
+      document.getElementById('modalActionName').textContent = data.action;
+      document.getElementById('modalTokenPreview').textContent = data.confirmation_token.substring(0, 32) + '...';
+      document.getElementById('confirmationModal').classList.remove('hidden');
+
+      let remaining = data.expires_in_seconds || 60;
+      const ttlSpan = document.getElementById('modalTtlCountdown');
+      const bar = document.getElementById('modalProgressBar');
+
+      clearInterval(countdownInterval);
+      countdownInterval = setInterval(() => {
+        remaining--;
+        ttlSpan.textContent = remaining + 's';
+        bar.style.width = ((remaining / 60) * 100) + '%';
+        if (remaining <= 0) {
+          clearInterval(countdownInterval);
+          closeConfirmationModal(false);
+          appendAlexaResponse('Challenge Expired', 'The 60-second confirmation token has expired.');
+          speakText('The confirmation token has expired.');
+        }
+      }, 1000);
+    }
+
+    function closeConfirmationModal(authorized) {
+      document.getElementById('confirmationModal').classList.add('hidden');
+      clearInterval(countdownInterval);
+      if (!authorized && pendingConfirmation) {
+        appendAlexaResponse('Action Cancelled', `Execution of '${escapeHtml(pendingConfirmation.action)}' was cancelled.`);
+        speakText('Action was cancelled.');
+      }
+    }
+
+    async function confirmServiceExecution() {
+      if (!pendingConfirmation) return;
+      const action = pendingConfirmation.action;
+      const token = pendingConfirmation.confirmation_token;
+      closeConfirmationModal(true);
+
+      setAlexaState('thinking');
+      try {
+        const resp = await executeMcpCall('tools/call', {
+          name: 'execute_service_action',
+          arguments: { action: action, confirmation_token: token }
+        }, (progMsg) => { alexaSubStatus.textContent = progMsg; });
+
+        if (resp && resp.result) {
+          const resultData = JSON.parse(resp.result.content[0].text);
+          if (resultData.status === 'success') {
+            const card = `
+              <div class="bg-slate-950 p-3 rounded-lg border border-emerald-500/40 text-emerald-300 text-xs space-y-1">
+                <div class="font-bold flex items-center gap-1.5"><span class="w-2 h-2 rounded-full bg-emerald-400"></span>Action Executed: ${escapeHtml(resultData.action)}</div>
+                <div class="text-[11px] text-slate-300">${escapeHtml(resultData.message)}</div>
+                <div class="text-[10px] text-slate-500 font-mono">Timestamp: ${escapeHtml(resultData.executed_at)}</div>
+              </div>
+            `;
+            appendAlexaResponse('Execution Confirmed', `Service action verified with single-use HMAC token and executed:`, card);
+            speakText(`Payment service restart was authorized and completed successfully.`);
+          } else {
+            appendAlexaResponse('Execution Rejected', resultData.reason || 'Safety barrier blocked the action.');
+            speakText('Execution was rejected by the safety barrier.');
+          }
+        }
+      } catch (e) {
+        appendAlexaResponse('Execution Error', e.message);
+      } finally {
+        pendingConfirmation = null;
+      }
+    }
+
+    async function pingServerHandshake() {
+      setAlexaState('thinking');
+      try {
+        await executeMcpCall('initialize', { protocolVersion: '2025-11-25', clientInfo: { name: 'AlexaPlusWebSimulator', version: '1.0.0' } });
+        setAlexaState('idle');
+      } catch (e) { setAlexaState('idle'); }
+    }
+
+    async function listRegisteredTools() {
+      setAlexaState('thinking');
+      try {
+        await executeMcpCall('tools/list', {});
+        setAlexaState('idle');
+      } catch (e) { setAlexaState('idle'); }
+    }
+
+    function handleTriggerPrompt(promptText) {
+      textInput.value = promptText;
+      processUserQuery(promptText);
+    }
+
+    sendBtn.addEventListener('click', () => processUserQuery(textInput.value));
+    textInput.addEventListener('keydown', (e) => { if (e.key === 'Enter') processUserQuery(textInput.value); });
+
+    window.addEventListener('load', () => pingServerHandshake());
+  </script>
+
+  <!-- Presentation-only enhancer: decorates already-rendered DOM. Reads no app state, calls no app functions, changes no handlers. -->
+  <script id="ui-enhancer">
+  (function () {
+    'use strict';
+    var chat = document.getElementById('chatHistory');
+    var insp = document.getElementById('inspectorLog');
+    if (!chat || !insp) return;
+
+    function decorate(root) {
+      if (!root.querySelectorAll) return;
+      root.querySelectorAll('[class*="border-rose-500/30"][class*="font-mono"]').forEach(function (card) {
+        if (card.dataset.cdDecorated) return;
+        card.dataset.cdDecorated = '1';
+        var culprit = card.querySelector('.font-sans span.font-mono');
+        if (culprit) {
+          var m = /(?:line\s*|:)(\d+)(?::(\d+))?/i.exec(culprit.textContent || '');
+          if (m) {
+            var b = document.createElement('span');
+            b.className = 'cd-line-badge';
+            b.textContent = 'Line ' + m[1] + (m[2] ? ':' + m[2] : '');
+            culprit.parentNode.appendChild(b);
+          }
+        }
+        var sum = card.querySelector('.whitespace-pre-wrap');
+        if (sum) {
+          var lines = (sum.textContent || '').split('\n');
+          var frag = document.createDocumentFragment();
+          lines.forEach(function (ln, i) {
+            if (ln === '' && i === lines.length - 1) return;
+            var row = document.createElement('div'); row.className = 'cd-row';
+            var g = document.createElement('span'); g.className = 'cd-gutter'; g.textContent = String(i + 1);
+            var c = document.createElement('span'); c.className = 'cd-text';
+            ln.split(/(\[REDACTED\]|Line \d+)/g).forEach(function (p) {
+              if (!p) return;
+              if (p === '[REDACTED]') { var r = document.createElement('span'); r.className = 'cd-redacted'; r.textContent = p; c.appendChild(r); }
+              else if (/^Line \d+$/.test(p)) { var l = document.createElement('span'); l.className = 'cd-lineref'; l.textContent = p; c.appendChild(l); }
+              else c.appendChild(document.createTextNode(p));
+            });
+            if (!c.firstChild) c.appendChild(document.createTextNode(' '));
+            row.appendChild(g); row.appendChild(c); frag.appendChild(row);
+          });
+          sum.textContent = '';
+          sum.appendChild(frag);
+        }
+      });
+    }
+    new MutationObserver(function (muts) {
+      muts.forEach(function (m) { m.addedNodes.forEach(function (n) { if (n.nodeType === 1) decorate(n); }); });
+    }).observe(chat, { childList: true });
+
+    // Connection-state dots (inspector footer + header pill)
+    var dot = document.getElementById('sseStatusDot'), txt = document.getElementById('sseStatusText');
+    var pill = document.getElementById('connectionPill'), pDot = document.getElementById('connectionPillDot'), pTxt = document.getElementById('connectionPillText');
+    function setConn(online) {
+      if (dot) dot.setAttribute('data-state', online ? 'online' : 'offline');
+      if (txt) txt.textContent = online ? 'SSE Decoder Ready' : 'Transport Error';
+      if (pTxt) pTxt.textContent = online ? 'Online' : 'Offline';
+      if (pill) pill.className = 'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-medium border ' +
+        (online ? 'bg-emerald-500/10 text-emerald-400 border-emerald-500/25' : 'bg-rose-500/10 text-rose-400 border-rose-500/30');
+      if (pDot) pDot.className = 'w-1.5 h-1.5 rounded-full animate-pulse ' + (online ? 'bg-emerald-400' : 'bg-rose-400');
+    }
+    new MutationObserver(function (muts) {
+      muts.forEach(function (m) { m.addedNodes.forEach(function (n) {
+        if (n.nodeType !== 1) return;
+        var t = n.textContent || '';
+        if (t.indexOf('Transport Error') !== -1) setConn(false);
+        else if (t.indexOf('RESPONSE [') !== -1 || t.indexOf('SSE STREAM:') !== -1) setConn(true);
+      }); });
+    }).observe(insp, { childList: true });
+  })();
+  </script>
+</body>
+</html>
