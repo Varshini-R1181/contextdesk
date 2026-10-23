@@ -21,17 +21,17 @@ flowchart TD
     end
 
     subgraph SecurityPerimeter["Amazon Principal Security Perimeter"]
-        DNSGuard["DNS Rebinding & Origin Guard\n(Host Whitelist, Rejection of Origin: null)"]
-        PathSanitizer["Windows-Safe Path Containment\n(os.path.commonpath, Colon ':' Rejection)"]
-        SecretScrubber["Multi-Pattern Secret Scrubber\n(AWS Keys, Bearer, Passwords, PATs)"]
-        TokenBarrier["Replay-Proof Two-Tier Barrier\n(HMAC-SHA256 + Atomic Nonce Burn)"]
+        DNSGuard["DNS Rebinding & Origin Guard<br>(Host Whitelist, Rejection of Origin: null)"]
+        PathSanitizer["Windows-Safe Path Containment<br>(os.path.commonpath, Colon ':' Rejection)"]
+        SecretScrubber["Multi-Pattern Secret Scrubber<br>(AWS Keys, Bearer, Passwords, PATs)"]
+        TokenBarrier["Replay-Proof Two-Tier Barrier<br>(HMAC-SHA256 + Atomic Nonce Burn)"]
     end
 
     subgraph CoreEngine["ContextDesk Server (server.py)"]
         Router["Streamable HTTP Transport (POST /mcp)"]
         SSEStreamer["Chunked SSE Engine (text/event-stream)"]
         ToolRegistry["Tool Registry (inspect_build_logs, execute_service_action, query_codebase_context)"]
-        DiagEngine["Pure Python Deterministic Analyzer\n(Zero External LLM / No Ollama)"]
+        DiagEngine["Pure Python Deterministic Analyzer<br>(Zero External LLM / No Ollama)"]
         FTS5Engine["SQLite FTS5 In-Memory Search Engine"]
     end
 
@@ -40,7 +40,7 @@ flowchart TD
         Docs["./workspace/docs/architecture.md"]
     end
 
-    Simulator -->|POST /mcp (JSON-RPC 2.0)| DNSGuard
+    Simulator -->|"POST /mcp (JSON-RPC 2.0)"| DNSGuard
     DNSGuard --> Router
     Router --> ToolRegistry
     ToolRegistry --> PathSanitizer
@@ -51,7 +51,7 @@ flowchart TD
     ToolRegistry --> FTS5Engine
     FTS5Engine <--> Docs
     ToolRegistry --> SSEStreamer
-    SSEStreamer -->|text/event-stream (Progress & Envelopes)| Inspector
+    SSEStreamer -->|"text/event-stream (Progress & Envelopes)"| Inspector
 ```
 
 ---
